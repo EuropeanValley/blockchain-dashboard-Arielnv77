@@ -1,8 +1,8 @@
-"""Starter file for module M2."""
+"""Block header inspection module."""
 
 import streamlit as st
 
-from api.blockchain_client import get_block
+from api.blockchain_client import BlockchainClientError, get_block
 
 
 def render() -> None:
@@ -26,13 +26,15 @@ def render() -> None:
                     "Height": block.get("height"),
                     "Time": block.get("time"),
                     "Nonce": block.get("nonce"),
+                    "Difficulty": block.get("difficulty"),
                     "Bits": block.get("bits"),
-                    "Merkle root": block.get("mrkl_root"),
-                    "Previous block": block.get("prev_block"),
+                    "Merkle root": block.get("merkle_root"),
+                    "Previous block": block.get("previous_block"),
+                    "Transactions": block.get("tx_count"),
                 }
                 for label, value in header_fields.items():
                     st.write(f"**{label}:** {value}")
-            except Exception as exc:
+            except BlockchainClientError as exc:
                 st.error(f"Error fetching block: {exc}")
     elif not block_hash:
         st.info("Enter a block hash and click Look up block.")

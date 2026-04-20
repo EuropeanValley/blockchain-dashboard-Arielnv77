@@ -9,14 +9,12 @@ Update this README every week.
 
 | Field | Value |
 |---|---|
-| Student Name | |
-| GitHub Username | |
-| Project Title | |
-| Chosen AI Approach | |
+| Student Name | Ariel |
+| GitHub Username | Arielnv77 |
+| Project Title | CryptoChain Analyzer Dashboard |
+| Chosen AI Approach | Anomaly Detector — inter-block time statistical analysis |
 
 ## Module Tracking
-
-Use one of these values: `Not started`, `In progress`, `Done`
 
 | Module | What it should include | Status |
 |---|---|---|
@@ -27,23 +25,18 @@ Use one of these values: `Not started`, `In progress`, `Done`
 
 ## Current Progress
 
-Write 3 to 5 short lines about what you have already done.
-
-- 
-- 
-- 
+- Accepted GitHub Classroom assignment and cloned repository
+- Connected to Blockstream API and retrieved live Bitcoin block data
+- Printed height, hash, bits, nonce and tx_count for latest block
+- Confirmed leading zeros visible in block hash (PoW verification)
 
 ## Next Step
 
-Write the next small step you will do before the next class.
-
-- 
+- Build M1 PoW Monitor in Streamlit with block time distribution plot
 
 ## Main Problem or Blocker
 
-Write here if you are stuck with something.
-
-- 
+- None at this point
 
 ## How to Run
 
