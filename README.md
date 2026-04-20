@@ -18,7 +18,7 @@ Update this README every week.
 
 | Module | What it should include | Status |
 |---|---|---|
-| M1 | Proof of Work Monitor | Not started |
+| M1 | Proof of Work Monitor | In progress |
 | M2 | Block Header Analyzer | Not started |
 | M3 | Difficulty History | Not started |
 | M4 | AI Component | Not started |
@@ -29,6 +29,7 @@ Update this README every week.
 - Connected to Blockstream API and retrieved live Bitcoin block data
 - Printed height, hash, bits, nonce and tx_count for latest block
 - Confirmed leading zeros visible in block hash (PoW verification)
+- Pushed the first session work to the private GitHub Classroom repository
 
 ## Next Step
 
