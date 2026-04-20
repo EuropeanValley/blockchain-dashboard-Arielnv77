@@ -6,11 +6,17 @@ from api.blockchain_client import (
     BlockchainClientError,
     get_difficulty_history,
     get_latest_block,
+    get_network_snapshot,
     summarize_difficulty,
 )
 
 
-def _generate_insights(block: dict[str, object], change_pct: float) -> list[str]:
+def _generate_insights(
+    block: dict[str, object],
+    change_pct: float,
+    peer_count: int | None,
+    unconfirmed_count: int | None,
+) -> list[str]:
     insights = []
 
     tx_count = block.get("tx_count")
@@ -33,6 +39,15 @@ def _generate_insights(block: dict[str, object], change_pct: float) -> list[str]
     if isinstance(nonce, int):
         insights.append(f"The latest block nonce is {nonce:,}, a reminder of the repeated trial-and-error process behind proof of work.")
 
+    if isinstance(unconfirmed_count, int):
+        if unconfirmed_count > 5000:
+            insights.append("The mempool appears busy because the number of unconfirmed transactions is elevated.")
+        else:
+            insights.append("The unconfirmed transaction count is moderate, so short-term network congestion looks contained.")
+
+    if isinstance(peer_count, int):
+        insights.append(f"The secondary network snapshot reports {peer_count} reachable peers.")
+
     if not insights:
         insights.append("Not enough data was available to generate heuristic observations.")
     return insights
@@ -49,13 +64,24 @@ def render() -> None:
         with st.spinner("Analyzing blockchain signals..."):
             try:
                 block = get_latest_block()
+                network = get_network_snapshot()
                 history = get_difficulty_history(days)
                 summary = summarize_difficulty(history)
-                insights = _generate_insights(block, summary.change_pct)
+                insights = _generate_insights(
+                    block,
+                    summary.change_pct,
+                    network.peer_count,
+                    network.unconfirmed_count,
+                )
 
                 st.subheader("Generated insights")
                 for insight in insights:
                     st.write(f"- {insight}")
+
+                st.caption(
+                    "This analysis combines Blockstream for the latest block, Blockchain.com Charts for "
+                    "difficulty history, and BlockCypher for network conditions."
+                )
 
                 st.subheader("Why this counts as AI")
                 st.write(
