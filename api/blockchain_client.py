@@ -10,6 +10,7 @@ import requests
 
 BLOCKSTREAM_API = "https://blockstream.info/api"
 BLOCKCHAIN_CHARTS_API = "https://api.blockchain.info/charts/difficulty"
+BLOCKCYPHER_API = "https://api.blockcypher.com/v1/btc/main"
 DEFAULT_TIMEOUT = 10
 
 
@@ -26,6 +27,17 @@ class DifficultySnapshot:
     minimum: float
     maximum: float
     change_pct: float
+
+
+@dataclass(frozen=True)
+class NetworkSnapshot:
+    """Compact network status from a secondary API."""
+
+    height: int | None
+    hash: str | None
+    peer_count: int | None
+    unconfirmed_count: int | None
+    last_fork_height: int | None
 
 
 def _get_json(url: str, *, params: dict[str, object] | None = None) -> object:
@@ -74,6 +86,28 @@ def _normalize_block(block: dict[str, object]) -> dict[str, object]:
     }
 
 
+def get_api_sources() -> list[dict[str, str]]:
+    """Return the three APIs used by the dashboard."""
+
+    return [
+        {
+            "name": "Blockstream",
+            "role": "Latest block and block header lookups",
+            "base_url": BLOCKSTREAM_API,
+        },
+        {
+            "name": "Blockchain.com Charts",
+            "role": "Difficulty history time series",
+            "base_url": BLOCKCHAIN_CHARTS_API,
+        },
+        {
+            "name": "BlockCypher",
+            "role": "General Bitcoin network snapshot",
+            "base_url": BLOCKCYPHER_API,
+        },
+    ]
+
+
 def get_latest_block() -> dict[str, object]:
     """Return normalized data for the current Bitcoin tip block."""
 
@@ -118,6 +152,26 @@ def get_difficulty_history(days: int = 90) -> list[dict[str, float]]:
     if not values:
         raise BlockchainClientError("Difficulty history response was empty.")
     return values
+
+
+def get_network_snapshot() -> NetworkSnapshot:
+    """Return a simple Bitcoin network snapshot from a third API."""
+
+    payload = _get_json(BLOCKCYPHER_API)
+    if not isinstance(payload, dict):
+        raise BlockchainClientError("Unexpected network snapshot payload format.")
+
+    return NetworkSnapshot(
+        height=payload.get("height") if isinstance(payload.get("height"), int) else None,
+        hash=payload.get("hash") if isinstance(payload.get("hash"), str) else None,
+        peer_count=payload.get("peer_count") if isinstance(payload.get("peer_count"), int) else None,
+        unconfirmed_count=payload.get("unconfirmed_count")
+        if isinstance(payload.get("unconfirmed_count"), int)
+        else None,
+        last_fork_height=payload.get("last_fork_height")
+        if isinstance(payload.get("last_fork_height"), int)
+        else None,
+    )
 
 
 def summarize_difficulty(points: list[dict[str, float]]) -> DifficultySnapshot:

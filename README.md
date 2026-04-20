@@ -30,10 +30,11 @@ Update this README every week.
 - Printed height, hash, bits, nonce and tx_count for latest block
 - Confirmed leading zeros visible in block hash (PoW verification)
 - Pushed the first session work to the private GitHub Classroom repository
+- Expanded the dashboard client to combine Blockstream, Blockchain.com Charts and BlockCypher
 
 ## Next Step
 
-- Build M1 PoW Monitor in Streamlit with block time distribution plot
+- Keep building the Streamlit dashboard and connect the three APIs to the four modules.
 
 ## Main Problem or Blocker
 
