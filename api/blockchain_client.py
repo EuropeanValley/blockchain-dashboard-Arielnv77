@@ -124,6 +124,42 @@ def get_block(block_hash: str) -> dict[str, object]:
     return _normalize_block(payload)
 
 
+def get_block_header_raw(block_hash: str) -> str:
+    """Return the 80-byte block header as a 160-char hex string."""
+    return _get_text(f"{BLOCKSTREAM_API}/block/{block_hash}/header")
+
+
+def _get_blocks_page(start_height: int | None = None) -> list[dict[str, object]]:
+    url = f"{BLOCKSTREAM_API}/blocks"
+    if start_height is not None:
+        url += f"/{start_height}"
+    payload = _get_json(url)
+    if not isinstance(payload, list):
+        raise BlockchainClientError("Unexpected blocks-page payload format.")
+    return [_normalize_block(b) for b in payload if isinstance(b, dict)]
+
+
+def get_recent_blocks(n: int = 50) -> list[dict[str, object]]:
+    """Return the n most recent normalized blocks, newest first.
+
+    Makes ceil(n/10) sequential Blockstream requests; each page returns 10 blocks.
+    """
+    blocks: list[dict[str, object]] = []
+    start_height: int | None = None
+
+    while len(blocks) < n:
+        page = _get_blocks_page(start_height)
+        if not page:
+            break
+        blocks.extend(page)
+        heights = [b["height"] for b in page if isinstance(b.get("height"), int)]
+        if not heights:
+            break
+        start_height = min(heights) - 1
+
+    return blocks[:n]
+
+
 def get_difficulty_history(days: int = 90) -> list[dict[str, float]]:
     """Return chart-ready Bitcoin difficulty history points."""
 

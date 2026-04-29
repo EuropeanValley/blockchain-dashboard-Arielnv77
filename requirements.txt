@@ -1,4 +1,7 @@
-requests
-pandas
-plotly
 streamlit
+requests
+plotly
+pandas
+numpy
+scipy
+streamlit-autorefresh
