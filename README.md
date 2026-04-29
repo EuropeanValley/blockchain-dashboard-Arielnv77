@@ -9,7 +9,7 @@ Update this README every week.
 
 | Field | Value |
 |---|---|
-| Student Name | Ariel |
+| Student Name | Ariel Nuñez Valencia |
 | GitHub Username | Arielnv77 |
 | Project Title | CryptoChain Analyzer Dashboard |
 | Chosen AI Approach | Anomaly Detector â€” inter-block time statistical analysis |
