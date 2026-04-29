@@ -81,19 +81,19 @@ high p-value = data consistent with the theoretical baseline.
 |---|---|---|
 | 2026-04-21 | Session 1 | Cloned repo, connected Blockstream + Blockchain.info + BlockCypher APIs, retrieved live block data |
 | 2026-04-29 | Session 2 | Built all 4 modules (M1–M4) + full custom CSS Streamlit dashboard with auto-refresh every 60 s |
+| 2026-04-29 | Session 3 | Complete UI redesign: dark navy theme, sidebar navigation, per-module pages, Plotly dark charts |
 
-## Current Progress (Session 2 — 2026-04-29)
+## Current Progress (Session 3 — 2026-04-29)
 
 - **M1**: `get_latest_blocks(n=100)` paginates Blockstream; histogram shows Exp(λ=1/600 s) overlay
 - **M2**: raw 80-byte header fetched; 6 fields parsed (little-endian `struct`); SHA-256d verified manually
 - **M3**: ~20 retarget epochs with `height`, `actual_time`, `ratio` columns; dual-axis chart
 - **M4**: Z-score on log(T) returns `{indices, times, z_scores, labels}`; fast/slow/outlier classification; 95 % CI band on scatter plot; KS test metric
-- **Dashboard**: beige glass-card design, `Space Grotesk` + `JetBrains Mono` fonts, dark code panels, 60 s auto-refresh, full error handling (never crashes on API failure)
+- **Dashboard (v2)**: full dark navy redesign (`#0a0f1e` bg), sidebar navigation with per-module pages, `Inter` + `JetBrains Mono` fonts, Plotly charts with dark overlay (`#1e2d4a` grid), live-pulse indicator, 60 s auto-refresh
 - **Addressed teacher feedback**: `bits` → target formula and leading-zero semantics documented in code comments and in this README
 
 ## Next Step
 
-- Polish M4 evaluation section (add precision/recall against labelled synthetic data)
 - Consider M5 (Merkle Proof) or M6 (51% attack cost) for top grade
 
 ## Main Problem or Blocker
