@@ -33,6 +33,8 @@ def bits_to_target(bits: int) -> int:
     """
     exp  = bits >> 24
     mant = bits & 0x00FFFFFF
+    if exp < 3 or mant == 0:
+        return 0
     return mant * (1 << (8 * (exp - 3)))
 
 

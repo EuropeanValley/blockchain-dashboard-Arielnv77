@@ -41,6 +41,8 @@ def bits_to_target(bits: int) -> int:
     """
     exp  = bits >> 24
     mant = bits & 0x00FFFFFF
+    if exp < 3 or mant == 0:
+        return 0
     return mant * (1 << (8 * (exp - 3)))
 
 
@@ -122,8 +124,8 @@ def verify_pow(raw: bytes) -> dict[str, object]:
     bits_int = struct.unpack_from("<I", raw, 72)[0]
     target   = bits_to_target(bits_int)
 
-    # Step 4 — PoW validity
-    valid = hash_int <= target
+    # Step 4 — PoW validity (target == 0 means bits field was zero / invalid)
+    valid = (target > 0) and (hash_int <= target)
 
     # Step 5 — count leading zero bits in 256-bit hash
     leading_zeros = (256 - hash_int.bit_length()) if hash_int > 0 else 256
