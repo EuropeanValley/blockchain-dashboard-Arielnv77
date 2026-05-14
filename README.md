@@ -22,8 +22,8 @@ Update this README every week.
 | M2 — Block Header Analyzer | Fetches raw 80-byte header, parses 6 fields (LE), verifies SHA-256d manually with `hashlib` | `get_raw_header`, `parse_header`, `verify_pow`, `bits_to_target` | ✅ Complete |
 | M3 — Difficulty History | Fetches ~20 retarget epochs, builds DataFrame with `actual_time` and `ratio`, dual-axis chart | `get_difficulty_history`, `plot_difficulty_history`, `plot_hashrate_vs_difficulty` | ✅ Complete |
 | M4 — Anomaly Detector (AI) | Z-score on log(T) vs Exp(λ=1/600 s) baseline; classifies fast/slow blocks; KS test evaluation | `detect_anomalies`, `evaluate`, `plot_anomalies` | ✅ Complete |
-| M5 — Merkle Proof Verifier | — | — | ⬜ Optional |
-| M6 — Security Score (51% cost) | — | — | ⬜ Optional |
+| M5 — Merkle Proof Verifier | Fetches all txids, builds SHA-256d Merkle tree, generates inclusion proof, verifies txid against header root | `get_block_txids`, `build_merkle_root`, `build_merkle_proof`, `verify_merkle_proof`, `plot_merkle_proof` | ✅ Complete |
+| M6 — Security Score (51% cost) | Estimates cost of 51% attack via rental (NiceHash) and purchase (ASIC) paths; derives security ratio against honest block revenue; BTC price from blockchain.info | `get_btc_price_usd`, `compute_attack_cost`, `compute_security_metrics`, `plot_cost_comparison`, `plot_security_gauge` | ✅ Complete |
 
 ## Cryptographic Concepts Implemented
 
@@ -60,6 +60,50 @@ hash_display = double_sha256(header_bytes)[::-1].hex()
 valid = int(hash_display, 16) <= target          # PoW check
 ```
 
+### M5 — Merkle Proof Verifier
+
+All transactions in a Bitcoin block are arranged in a **binary Merkle tree**.
+The root is stored in the 80-byte block header (bytes 36–67, little-endian).
+
+```python
+# SHA-256d pair combination (Bitcoin convention):
+def _sha256d_pair(a: bytes, b: bytes) -> bytes:
+    return hashlib.sha256(hashlib.sha256(a + b).digest()).digest()
+
+# txids come from the API in display (big-endian) order.
+# Bitcoin's internal tree uses reversed bytes (little-endian):
+level = [bytes.fromhex(txid)[::-1] for txid in txids]
+
+# If odd number of nodes, duplicate the last (Bitcoin protocol rule):
+if len(level) % 2 == 1:
+    level.append(level[-1])
+```
+
+An **inclusion proof** for transaction at index `i` is the sequence of sibling
+hashes at each tree level.  Verification re-hashes the path and compares with
+the stored `merkle_root` — proving the txid is in the block without downloading
+all transactions.
+
+### M6 — Security Score (51 % Attack Cost)
+
+A 51 % attack requires hashrate H_attack > H_honest.  Two economic paths:
+
+```python
+# Path 1 — Rental (NiceHash SHA-256 market)
+rental_cost_1h = needed_TH_s × nicehash_rate   # $/TH/s/h
+
+# Path 2 — Purchase (Antminer S21 Pro, 234 TH/s)
+hardware_cost   = (needed_TH_s / 234) × $5_000
+electricity_1h  = (needed_TH_s / 234) × 3.51 kW × $0.06/kWh
+
+# Security ratio:  how many hours of honest revenue ≥ 1h attack cost?
+revenue_1h = 6 blocks × 3.125 BTC × BTC_price_USD
+ratio      = revenue_1h / rental_cost_1h     # higher = safer
+```
+
+Bitcoin's security comes from making the attack cost far exceed the revenue
+from double-spending — the ratio is typically well above 1 on mainnet.
+
 ### M4 — Anomaly Detector (AI Component)
 
 Bitcoin inter-block times follow **Exp(λ = 1/600 s)** under normal network conditions.
@@ -82,19 +126,21 @@ high p-value = data consistent with the theoretical baseline.
 | 2026-04-21 | Session 1 | Cloned repo, connected Blockstream + Blockchain.info + BlockCypher APIs, retrieved live block data |
 | 2026-04-29 | Session 2 | Built all 4 modules (M1–M4) + full custom CSS Streamlit dashboard with auto-refresh every 60 s |
 | 2026-04-29 | Session 3 | Complete UI redesign: dark navy theme, sidebar navigation, per-module pages, Plotly dark charts |
+| 2026-05-14 | Session 4 | M5 Merkle Proof Verifier + M6 Security Score (51% attack cost) — all 6 modules complete |
 
-## Current Progress (Session 3 — 2026-04-29)
+## Current Progress (Session 4 — 2026-05-14)
 
 - **M1**: `get_latest_blocks(n=100)` paginates Blockstream; histogram shows Exp(λ=1/600 s) overlay
 - **M2**: raw 80-byte header fetched; 6 fields parsed (little-endian `struct`); SHA-256d verified manually
 - **M3**: ~20 retarget epochs with `height`, `actual_time`, `ratio` columns; dual-axis chart
 - **M4**: Z-score on log(T) returns `{indices, times, z_scores, labels}`; fast/slow/outlier classification; 95 % CI band on scatter plot; KS test metric
-- **Dashboard (v2)**: full dark navy redesign (`#0a0f1e` bg), sidebar navigation with per-module pages, `Inter` + `JetBrains Mono` fonts, Plotly charts with dark overlay (`#1e2d4a` grid), live-pulse indicator, 60 s auto-refresh
-- **Addressed teacher feedback**: `bits` → target formula and leading-zero semantics documented in code comments and in this README
+- **M5**: fetches all txids → builds SHA-256d Merkle tree → computes sibling-path inclusion proof → verifies txid against header's `merkle_root` — pure `hashlib`, no external crypto libs
+- **M6**: models 51% attack via two paths (rental at NiceHash rate; ASIC purchase amortised over 1 year); security ratio = honest 1h revenue / 1h rental cost; gauge chart + cost comparison bar chart
+- **Dashboard (v2)**: full dark navy redesign, sidebar navigation, all 6 modules as separate pages, 60 s auto-refresh
 
 ## Next Step
 
-- Consider M5 (Merkle Proof) or M6 (51% attack cost) for top grade
+- All mandatory and optional modules complete — project ready for final submission
 
 ## Main Problem or Blocker
 
@@ -115,14 +161,16 @@ Abre en `http://localhost:8501`. Se actualiza automáticamente cada 60 s.
 blockchain-dashboard-Arielnv77/
 ├── README.md
 ├── requirements.txt
-├── app.py                          ← dashboard principal (CSS + layout + auto-refresh)
+├── app.py                          ← dashboard principal (dark navy CSS + sidebar nav + 6 páginas)
 ├── api/
-│   └── blockchain_client.py        ← helpers HTTP (Blockstream + blockchain.info)
+│   └── blockchain_client.py        ← helpers HTTP (Blockstream + blockchain.info + BlockCypher)
 └── modules/
     ├── m1_pow_monitor.py           ← dificultad, hashrate, histograma inter-arrival
     ├── m2_block_header.py          ← SHA-256d manual, parse header, verify PoW
     ├── m3_difficulty_history.py    ← historial epochs, ratio, dual-axis chart
-    └── m4_ai_component.py          ← anomaly detector Z-score + KS test
+    ├── m4_ai_component.py          ← anomaly detector Z-score + KS test
+    ├── m5_merkle_proof.py          ← Merkle tree SHA-256d, inclusion proof, verification
+    └── m6_security_score.py        ← coste ataque 51%, rental vs compra, security ratio
 ```
 
 <!-- student-repo-auditor:teacher-feedback:start -->

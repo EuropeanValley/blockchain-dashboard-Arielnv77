@@ -230,6 +230,8 @@ import modules.m1_pow_monitor as m1
 import modules.m2_block_header as m2
 import modules.m3_difficulty_history as m3
 import modules.m4_ai_component as m4
+import modules.m5_merkle_proof as m5
+import modules.m6_security_score as m6
 
 if "page" not in st.session_state:
     st.session_state.page = "Dashboard"
@@ -356,13 +358,15 @@ ts_s  = datetime.now(timezone.utc).strftime("%H:%M UTC")
 # SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
 NAV = {
-    "Dashboard":       "⬡",
-    "M1 PoW Monitor":  "📊",
-    "M2 Block Header": "🔍",
-    "M3 Difficulty":   "📈",
-    "M4 Anomalies":    "🤖",
-    "── ──":           " ",      # visual separator
-    "Settings":        "⚙️",
+    "Dashboard":        "⬡",
+    "M1 PoW Monitor":   "📊",
+    "M2 Block Header":  "🔍",
+    "M3 Difficulty":    "📈",
+    "M4 Anomalies":     "🤖",
+    "M5 Merkle Proof":  "🌳",
+    "M6 Security":      "🛡️",
+    "── ──":            " ",      # visual separator
+    "Settings":         "⚙️",
 }
 
 with st.sidebar:
@@ -854,6 +858,235 @@ def render_m4() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# PAGE — M5 Merkle Proof
+# ─────────────────────────────────────────────────────────────────────────────
+def render_m5() -> None:
+    _page_header("M5", "Merkle Proof Verifier",
+                 "SHA-256d Merkle tree · txid inclusion proof · verify against header root")
+
+    st.markdown("""<div class="crypto-card">
+      <div class="card-header">
+        <span class="card-title">How it works</span>
+        <span class="card-badge">Pure hashlib · no external crypto</span>
+      </div>
+      <div class="card-subtitle">
+        Bitcoin transactions are organised in a binary Merkle tree.
+        The root is stored in the 80-byte block header (bytes 36–67).
+      </div>
+      <div class="terminal">
+        <span class="tk">step 1</span> fetch all txids for a block  → <span class="tv">GET /block/{hash}/txids</span><br>
+        <span class="tk">step 2</span> build Merkle tree             → <span class="tv">SHA-256d pairs (LE order)</span><br>
+        <span class="tk">step 3</span> extract proof path            → <span class="tv">sibling hashes per level</span><br>
+        <span class="tk">step 4</span> verify txid ∈ block           → <span class="tv">recompute root and compare</span>
+      </div>
+    </div>""", unsafe_allow_html=True)
+
+    # ── Block hash input ──────────────────────────────────────────────────────
+    st.markdown('<div class="sec">Load a block</div>', unsafe_allow_html=True)
+    st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
+
+    col_input, col_btn = st.columns([5, 1])
+    with col_input:
+        block_hash_input = st.text_input(
+            "Block hash (64 hex chars)",
+            placeholder="0000000000000000000322e71c6a00fc…",
+            label_visibility="collapsed",
+            key="m5_block_hash",
+        )
+    with col_btn:
+        load_clicked = st.button("Load", key="m5_load", use_container_width=True)
+
+    # Pre-fill with latest block hash from cached data
+    if ok and not block_hash_input:
+        latest_hash = D["latest"].get("hash") or D["latest"].get("id") or ""
+        if latest_hash:
+            st.caption(f"💡 Latest block: `{latest_hash[:20]}…`")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if load_clicked and block_hash_input:
+        with st.spinner("Fetching transaction list from Blockstream…"):
+            try:
+                txids = m5.get_block_txids(block_hash_input.strip())
+                st.session_state["m5_txids"]      = txids
+                st.session_state["m5_block_hash"] = block_hash_input.strip()
+            except RuntimeError as exc:
+                st.error(str(exc))
+
+    # ── Proof section (only shown once txids loaded) ──────────────────────────
+    txids = st.session_state.get("m5_txids", [])
+    if not txids:
+        st.info("Enter a block hash and click **Load** to fetch its transactions.")
+        return
+
+    n_tx = len(txids)
+    st.markdown(f'<div class="sec">Block loaded — {n_tx} transactions</div>',
+                unsafe_allow_html=True)
+
+    st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
+    tx_idx = st.slider(
+        "Select transaction index to prove",
+        min_value=0, max_value=n_tx - 1, value=0, key="m5_tx_idx",
+    )
+    verify_clicked = st.button("Build & verify Merkle proof", key="m5_verify")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if verify_clicked:
+        with st.spinner("Computing Merkle proof…"):
+            proof         = m5.build_merkle_proof(txids, tx_idx)
+            computed_root = m5.build_merkle_root(txids)
+            valid         = m5.verify_merkle_proof(txids[tx_idx], proof, computed_root)
+
+        valid_color = "#00e676" if valid else "#ff4444"
+        valid_text  = "✓  VALID — txid is provably in this block" if valid else "✗  INVALID"
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Transactions in block", f"{n_tx:,}")
+        c2.metric("Proof depth (levels)",  len(proof))
+        c3.metric("Proof valid",           "✓ Yes" if valid else "✗ No")
+
+        # Txid terminal
+        txid_shown = txids[tx_idx]
+        st.markdown(f"""<div class="crypto-card">
+          <div class="card-header">
+            <span class="card-title">Transaction [{tx_idx}]</span>
+            <span style="color:{valid_color};font-size:12px;font-weight:600">{valid_text}</span>
+          </div>
+          <div class="terminal">
+            <span class="tk">txid</span> = <span class="th">{txid_shown[:32]}</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <span class="th">{txid_shown[32:]}</span><br>
+            <br>
+            <span class="tk">proof_depth</span>  = <span class="tn">{len(proof)}</span> levels<br>
+            <span class="tk">merkle_root</span>  = <span class="th">{computed_root[:32]}</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <span class="th">{computed_root[32:]}</span><br>
+            <span class="tk">valid</span>        = <span style="color:{valid_color}">{valid}</span>
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+        # Proof path visualisation
+        st.markdown('<div class="sec">Proof Path (leaf → root)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
+        st.plotly_chart(
+            _dark(m5.plot_merkle_proof(txids, tx_idx, proof), h=max(260, (len(proof) + 2) * 52)),
+            use_container_width=True, config=_CFG,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Proof steps table
+        with st.expander(f"Proof steps detail ({len(proof)} siblings)"):
+            import pandas as pd
+            rows = [
+                {
+                    "Level": i,
+                    "Direction of sibling": step["direction"],
+                    "Sibling hash (first 32 chars)": step["hash"][:32] + "…",
+                }
+                for i, step in enumerate(proof)
+            ]
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PAGE — M6 Security Score
+# ─────────────────────────────────────────────────────────────────────────────
+def render_m6() -> None:
+    _page_header("M6", "Security Score",
+                 "51 % attack cost · rental vs purchase · economic security ratio")
+
+    # Use cached hashrate if available, else fallback
+    hr_ehs: float = 700.0
+    if ok and D.get("hashrate"):
+        hr_ehs = D["hashrate"] / 1e18   # convert H/s → EH/s
+
+    st.markdown("""<div class="crypto-card">
+      <div class="card-header">
+        <span class="card-title">Attack Model</span>
+        <span class="card-badge">Theoretical estimate</span>
+      </div>
+      <div class="card-subtitle">
+        A 51 % attacker needs hashrate H_attack &gt; H_honest (current total network).
+      </div>
+      <div class="terminal">
+        <span class="tk">needed</span>  = current network hashrate (EH/s)<br>
+        <span class="tk">rental</span>  = needed_TH/s × NiceHash_rate ($/TH/s/h)<br>
+        <span class="tk">purchase</span>= units × ASIC_price + electricity<br>
+        <span class="tk">ratio</span>   = honest_revenue_1h / rental_cost_1h
+      </div>
+    </div>""", unsafe_allow_html=True)
+
+    # ── Compute ───────────────────────────────────────────────────────────────
+    with st.spinner("Fetching BTC price…"):
+        btc_price = m6.get_btc_price_usd()
+
+    cost    = m6.compute_attack_cost(hr_ehs)
+    metrics = m6.compute_security_metrics(cost, btc_price)
+
+    price_s = f"${btc_price:,.0f}" if btc_price else "$60,000 (fallback)"
+
+    # ── Top metrics ───────────────────────────────────────────────────────────
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Network hashrate",   f"{hr_ehs:.1f} EH/s",    "from M1")
+    c2.metric("BTC price",          price_s,                   "blockchain.info ticker")
+    c3.metric("Rental cost (1 h)",  f"${cost['rental_cost_1h_usd']/1e6:.1f}M",
+              "NiceHash SHA-256")
+    c4.metric("Security label",     metrics["security_label"],
+              f"ratio = {metrics['security_ratio']:.3f}")
+
+    # ── Charts ────────────────────────────────────────────────────────────────
+    col_l, col_r = st.columns([3, 2], gap="medium")
+
+    with col_l:
+        st.markdown("""<div class="crypto-card">
+          <div class="card-header">
+            <span class="card-title">Attack Cost: Rental vs Purchase</span>
+            <span class="card-badge">USD millions</span>
+          </div>
+          <div class="card-subtitle">
+            Rental = NiceHash market rate · Purchase = capex amortised over 1 year + electricity
+          </div>
+        </div>""", unsafe_allow_html=True)
+        st.plotly_chart(
+            _dark(m6.plot_cost_comparison(cost), h=300),
+            use_container_width=True, config=_CFG,
+        )
+
+    with col_r:
+        st.markdown("""<div class="crypto-card">
+          <div class="card-header">
+            <span class="card-title">Security Gauge</span>
+            <span class="card-badge">revenue / cost</span>
+          </div>
+          <div class="card-subtitle">
+            Ratio = honest miner revenue per hour / 1-hour rental cost of attack
+          </div>
+        </div>""", unsafe_allow_html=True)
+        st.plotly_chart(
+            _dark(m6.plot_security_gauge(metrics["security_ratio"]), h=240),
+            use_container_width=True, config=_CFG,
+        )
+
+    # ── Hardware breakdown ────────────────────────────────────────────────────
+    st.markdown('<div class="sec">Hardware Assumptions</div>', unsafe_allow_html=True)
+    st.markdown(f"""<div class="crypto-card">
+      <div class="terminal">
+        <span class="tk">asic_model</span>        = <span class="tv">{cost["asic_model"]}</span><br>
+        <span class="tk">ths_per_unit</span>       = <span class="tn">{cost["asic_ths_per_unit"]:.0f} TH/s</span><br>
+        <span class="tk">asic_price</span>         = <span class="tn">${cost["asic_price_usd"]:,.0f}</span><br>
+        <span class="tk">power_per_unit</span>     = <span class="tn">{cost["asic_power_kw"]:.2f} kW</span><br>
+        <span class="tk">electricity_rate</span>   = <span class="tn">${cost["electricity_usd_kwh"]:.2f}/kWh</span><br>
+        <span class="tk">units_needed</span>       = <span class="tn">{cost["asic_units_needed"]:,} ASICs</span><br>
+        <span class="tk">hardware_capex</span>     = <span class="tn">${cost["hardware_cost_usd"]/1e9:.2f}B</span><br>
+        <span class="tk">nicehash_rate</span>      = <span class="tn">${cost["nicehash_rate_usd_per_ths"]:.3f}/TH/s/h</span><br>
+        <br>
+        <span class="tk">attack_vs_daily_revenue</span> = <span class="tn">{metrics["attack_pct_of_day"]:.1f}%</span>
+        <span class="ts">  (24h rental cost / 24h honest revenue)</span>
+      </div>
+    </div>""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # PAGE — Settings
 # ─────────────────────────────────────────────────────────────────────────────
 def render_settings() -> None:
@@ -884,8 +1117,8 @@ def render_settings() -> None:
             <span class="tv">✓</span> M2 Block Header (SHA-256d)<br>
             <span class="tv">✓</span> M3 Difficulty History<br>
             <span class="tv">✓</span> M4 Anomaly Detector (AI)<br>
-            <span class="ts">·</span> M5 Merkle Proof (optional)<br>
-            <span class="ts">·</span> M6 Security Score (optional)
+            <span class="tv">✓</span> M5 Merkle Proof Verifier<br>
+            <span class="tv">✓</span> M6 Security Score (51% cost)
           </div>
         </div>""", unsafe_allow_html=True)
     with c2:
@@ -905,12 +1138,14 @@ def render_settings() -> None:
 # ROUTER
 # ─────────────────────────────────────────────────────────────────────────────
 _ROUTES = {
-    "Dashboard":       render_dashboard,
-    "M1 PoW Monitor":  render_m1,
-    "M2 Block Header": render_m2,
-    "M3 Difficulty":   render_m3,
-    "M4 Anomalies":    render_m4,
-    "Settings":        render_settings,
+    "Dashboard":        render_dashboard,
+    "M1 PoW Monitor":   render_m1,
+    "M2 Block Header":  render_m2,
+    "M3 Difficulty":    render_m3,
+    "M4 Anomalies":     render_m4,
+    "M5 Merkle Proof":  render_m5,
+    "M6 Security":      render_m6,
+    "Settings":         render_settings,
 }
 
 _ROUTES.get(page, render_dashboard)()
